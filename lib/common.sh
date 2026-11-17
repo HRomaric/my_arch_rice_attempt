@@ -42,7 +42,10 @@ git_fetch() {   # git_fetch <url> <name> [ref] [--recursive]
         git -C "$dir" checkout --force "$ref" >&2
         [[ -n $rec ]] && git -C "$dir" submodule update --init --recursive >&2
     else
-        git -C "$dir" pull --ff-only >&2 || true
+        # Only pull on a branch; a previously checked-out tag leaves HEAD detached
+        if git -C "$dir" symbolic-ref -q HEAD >/dev/null; then
+            git -C "$dir" pull --ff-only >&2 || true
+        fi
     fi
     printf '%s\n' "$dir"
 }

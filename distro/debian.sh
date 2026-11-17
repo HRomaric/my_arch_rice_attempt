@@ -13,6 +13,11 @@
 : "${HYPRWIRE_TAG:=v0.3.1}"
 : "${AQUAMARINE_TAG:=v0.16.0}"
 : "${HYPRLAND_PROTOCOLS_TAG:=v0.8.0}"
+# System libs that trixie ships too old for Hyprland >= 0.57; built into /usr/local only if needed
+: "${WAYLAND_PROTOCOLS_TAG:=1.49}"
+: "${XKBCOMMON_TAG:=xkbcommon-1.11.0}"
+: "${LIBINPUT_TAG:=1.29.2}"
+: "${LUA_VERSION:=5.5.1}"
 : "${HYPRLAND_TAG:=v0.57.2}"
 : "${HYPRLOCK_TAG:=v0.9.7}"
 : "${HYPRIDLE_TAG:=v0.1.8}"
@@ -35,7 +40,9 @@ JOBS=$(nproc)
 
 # Exact-name check. (apt-cache show/policy treat the name as a regex, so "g++-15" would
 # match e.g. "clang-15" and look available when it isn't.)
-apt_exists() { apt-cache pkgnames "$1" 2>/dev/null | grep -qxF -- "$1"; }
+# No `grep -q`: it exits on the first match, apt-cache dies of SIGPIPE, and under
+# `set -o pipefail` the whole check fails even though the package exists.
+apt_exists() { apt-cache pkgnames "$1" 2>/dev/null | grep -xF -- "$1" >/dev/null; }
 
 # Install the packages that exist in the configured repos; warn about the others
 apt_try() {
@@ -51,6 +58,7 @@ apt_has_version() {   # apt_has_version <pkg> <min>  → candidate >= min ?
     local v; v=$(apt-cache policy "$1" 2>/dev/null | awk '/Candidate:/{print $2}')
     [[ -n $v && $v != "(none)" ]] && dpkg --compare-versions "$v" ge "$2"
 }
+pc_ge() { pkg-config --atleast-version="$2" "$1" 2>/dev/null; }   # pc_ge <module> <min>
 
 # checkout a tag, accepting both "vX.Y.Z" and "X.Y.Z"
 checkout_tag() {   # checkout_tag <dir> <tag>
@@ -124,6 +132,58 @@ build_gcc() {
     ok "GCC $GCC_VERSION installed in $GCC_PREFIX"
 }
 
+# Lua 5.5 (Hyprland's config language) isn't packaged on trixie. Upstream ships no shared
+# lib or .pc file, so install a static -fPIC lib + headers under a versioned name (no
+# /usr/local/bin/lua, so the system interpreter isn't shadowed) and write a .pc for it.
+build_lua() {
+    local mm=${LUA_VERSION%.*}
+    pc_ge "lua$mm" "$LUA_VERSION" && { info "Lua $LUA_VERSION already installed"; return; }
+    info "Building Lua $LUA_VERSION"
+    local d="$SRC_DIR/lua-$LUA_VERSION"
+    mkdir -p "$SRC_DIR"
+    [[ -d $d ]] || curl -fsSL "https://www.lua.org/ftp/lua-$LUA_VERSION.tar.gz" | tar -xz -C "$SRC_DIR" \
+        || die "Failed to download Lua $LUA_VERSION"
+    make -C "$d" clean >/dev/null
+    make -C "$d" linux MYCFLAGS=-fPIC || die "Lua $LUA_VERSION build failed"
+    sudo install -Dm644 -t "/usr/local/include/lua$mm" \
+        "$d"/src/{lua.h,luaconf.h,lualib.h,lauxlib.h,lua.hpp}
+    sudo install -Dm644 "$d/src/liblua.a" "/usr/local/lib/liblua$mm.a"
+    sudo install -d /usr/local/lib/pkgconfig
+    sudo tee "/usr/local/lib/pkgconfig/lua$mm.pc" >/dev/null <<PC
+prefix=/usr/local
+libdir=\${prefix}/lib
+includedir=\${prefix}/include/lua$mm
+
+Name: Lua
+Description: Lua $LUA_VERSION (static, built by the rice installer)
+Version: $LUA_VERSION
+Libs: -L\${libdir} -llua$mm -lm -ldl
+Cflags: -I\${includedir}
+PC
+    ok "Lua $LUA_VERSION installed"
+}
+
+# Hyprland 0.57 wants newer wayland-protocols / xkbcommon / libinput than trixie has.
+# They go to /usr/local (ahead of the system libs in ld.so.conf); sonames are unchanged, so
+# everything else linked against the distro copies keeps working.
+build_newer_system_libs() {
+    pc_ge wayland-protocols "$WAYLAND_PROTOCOLS_TAG" \
+        || build_meson wayland-protocols https://gitlab.freedesktop.org/wayland/wayland-protocols.git \
+            "$WAYLAND_PROTOCOLS_TAG" -Dtests=false \
+        || die "wayland-protocols build failed"
+    pc_ge xkbcommon "${XKBCOMMON_TAG#xkbcommon-}" \
+        || build_meson libxkbcommon https://github.com/xkbcommon/libxkbcommon.git "$XKBCOMMON_TAG" \
+            -Denable-docs=false -Denable-bash-completion=false \
+            -Dxkb-config-root=/usr/share/X11/xkb -Dx-locale-root=/usr/share/X11/locale \
+        || die "libxkbcommon build failed"
+    # udev-dir: keep the rules/helpers out of /usr/lib/udev so libinput-bin's files aren't clobbered
+    pc_ge libinput "$LIBINPUT_TAG" \
+        || build_meson libinput https://gitlab.freedesktop.org/libinput/libinput.git "$LIBINPUT_TAG" \
+            -Ddocumentation=false -Dtests=false -Ddebug-gui=false -Dudev-dir=/usr/local/lib/udev \
+        || die "libinput build failed"
+    build_lua
+}
+
 # Hyprland needs C++26 (g++ >= 15). Use the distro g++ if new enough, else g++-15 from apt,
 # else a locally built GCC in /opt. Binaries built with the local GCC get an RPATH to its
 # libstdc++, so the system libstdc++6 stays untouched.
@@ -174,14 +234,16 @@ hypr_build_deps() {
         libxcb-ewmh-dev libxcb-render-util0-dev libxcb-errors-dev libxcb-util-dev libxcb-xinput-dev \
         libxcb-image0-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-xkb-dev libxcb-cursor-dev \
         libxcursor-dev libx11-xcb-dev xwayland \
-        glslang-dev glslang-tools libei-dev libcanberra-dev liblcms2-dev uuid-dev libreadline-dev \
+        glslang-dev glslang-tools libei-dev libeis-dev libcanberra-dev liblcms2-dev uuid-dev libreadline-dev \
         liblua5.4-dev lua5.4 libpam0g-dev \
+        bison libxml2-dev libmtdev-dev libevdev-dev libwacom-dev \
         qt6-base-dev qt6-base-private-dev qt6-declarative-dev qt6-wayland-dev libpolkit-qt6-1-dev \
         qml6-module-qtquick-controls qml6-module-qtquick-layouts
 }
 
 build_hypr_stack() {
     ensure_cxx26
+    build_newer_system_libs
     local gh=https://github.com/hyprwm
     build_cmake hyprwayland-scanner "$gh/hyprwayland-scanner.git" "$HYPRWAYLAND_SCANNER_TAG"
     build_cmake hyprutils           "$gh/hyprutils.git"           "$HYPRUTILS_TAG"
