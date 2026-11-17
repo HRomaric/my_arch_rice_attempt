@@ -329,7 +329,10 @@ build_matugen() {
 
 install_waypaper() {
     apt_try python3-gi gir1.2-gtk-3.0 python3-imageio python3-platformdirs python3-screeninfo
-    pipx install --system-site-packages --force waypaper
+    # No --force: on an existing venv it force-reinstalls the deps too, so pip ignores
+    # Debian's python3-gi and tries (and fails) to build PyGObject from source.
+    pipx list --short 2>/dev/null | grep -q '^waypaper ' \
+        || pipx install --system-site-packages waypaper
     sudo ln -sf "$HOME/.local/bin/waypaper" /usr/local/bin/waypaper
     ok "waypaper installed"
 }
