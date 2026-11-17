@@ -8,7 +8,7 @@ GRUB Sidonia T1 → Plymouth `black_hud` → Ly (blackhole animation).
 
 ```bash
 git clone git@github.com:HRomaric/my_arch_rice_attempt.git/dotfiles.git ~/dotfiles
-cd ~/dotfiles
+cd ~/my_arch_rice_attempt
 ./install.sh            # as your normal user, it calls sudo itself
 ```
 
