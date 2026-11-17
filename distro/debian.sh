@@ -24,6 +24,8 @@
 : "${MATUGEN_VERSION:=4.2.0}"
 : "${ROFI_TAG:=2.0.0}"
 : "${LY_TAG:=v1.4.1}"
+: "${GCC_VERSION:=15.2.0}"               # built from source if the repos lack g++ >= 15
+: "${GCC_PREFIX:=/opt/gcc-15}"
 
 export DEBIAN_FRONTEND=noninteractive
 export CMAKE_PREFIX_PATH=/usr/local
@@ -31,11 +33,15 @@ export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib/$(uname -m)-linu
 export PATH="/usr/local/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 JOBS=$(nproc)
 
+# Exact-name check. (apt-cache show/policy treat the name as a regex, so "g++-15" would
+# match e.g. "clang-15" and look available when it isn't.)
+apt_exists() { apt-cache pkgnames "$1" 2>/dev/null | grep -qxF -- "$1"; }
+
 # Install the packages that exist in the configured repos; warn about the others
 apt_try() {
     local p ok=() miss=()
     for p in "$@"; do
-        if apt-cache show "$p" >/dev/null 2>&1; then ok+=("$p"); else miss+=("$p"); fi
+        if apt_exists "$p"; then ok+=("$p"); else miss+=("$p"); fi
     done
     ((${#miss[@]})) && warn "Not in apt, skipped: ${miss[*]}"
     ((${#ok[@]})) && sudo apt-get install -y --no-install-recommends "${ok[@]}"
@@ -90,19 +96,50 @@ build_meson() {   # build_meson <name> <git url> <tag> [meson args...]
     mark_built "$name" "${tag:-head}"; ok "$name installed"
 }
 
-# Hyprland needs C++26 (g++ >= 15). Use g++-15 from the repos if the default is older.
+# Build GCC from source into $GCC_PREFIX (trixie only ships g++ 14). Takes ~30-60 min.
+build_gcc() {
+    if [[ -x $GCC_PREFIX/bin/g++ ]] && "$GCC_PREFIX/bin/g++" -dumpversion | grep -qx "$GCC_VERSION"; then
+        info "GCC $GCC_VERSION already in $GCC_PREFIX"; return 0
+    fi
+    info "Building GCC $GCC_VERSION into $GCC_PREFIX (one-time, ~30-60 min, ~8 GB temporary disk)"
+    apt_try libgmp-dev libmpfr-dev libmpc-dev flex bison zlib1g-dev libzstd-dev
+    local d="$SRC_DIR/gcc-$GCC_VERSION" tarball="$SRC_DIR/gcc-$GCC_VERSION.tar.xz"
+    mkdir -p "$SRC_DIR"
+    if [[ ! -d $d ]]; then
+        curl -fL --retry 3 -o "$tarball" "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz" \
+            || die "Failed to download GCC $GCC_VERSION"
+        tar -xf "$tarball" -C "$SRC_DIR" && rm -f "$tarball"
+    fi
+    rm -rf "$d/build"; mkdir -p "$d/build"
+    ( cd "$d/build" \
+        && ../configure --prefix="$GCC_PREFIX" --program-suffix="-${GCC_VERSION%%.*}" \
+            --enable-languages=c,c++ --disable-multilib --disable-bootstrap \
+            --with-system-zlib --enable-default-pie --enable-linker-build-id \
+        && make -j"$JOBS" \
+        && sudo make install-strip ) || die "GCC $GCC_VERSION build failed – see the log above"
+    # program-suffix gives gcc-15/g++-15; add plain names too
+    sudo ln -sf "gcc-${GCC_VERSION%%.*}" "$GCC_PREFIX/bin/gcc"
+    sudo ln -sf "g++-${GCC_VERSION%%.*}" "$GCC_PREFIX/bin/g++"
+    rm -rf "$d"
+    ok "GCC $GCC_VERSION installed in $GCC_PREFIX"
+}
+
+# Hyprland needs C++26 (g++ >= 15). Use the distro g++ if new enough, else g++-15 from apt,
+# else a locally built GCC in /opt. Binaries built with the local GCC get an RPATH to its
+# libstdc++, so the system libstdc++6 stays untouched.
 ensure_cxx26() {
     local v; v=$(g++ -dumpversion 2>/dev/null | cut -d. -f1)
     [[ ${v:-0} -ge 15 ]] && return 0
-    if apt-cache show g++-15 >/dev/null 2>&1; then
+    if apt_exists g++-15 && apt_exists gcc-15; then
         sudo apt-get install -y g++-15 gcc-15
         export CC=gcc-15 CXX=g++-15
-        ok "Using g++-15 for the Hyprland build"
-    else
-        die "g++ ${v:-?} is too old for Hyprland ${HYPRLAND_TAG} (needs C++26 / g++ >= 15) and g++-15 isn't available.
-    Options: enable trixie-backports or move to Debian testing (forky), then re-run;
-    or re-run with --no-desktop to install only the shell + boot parts."
+        ok "Using g++-15 from apt for the Hyprland build"
+        return 0
     fi
+    build_gcc
+    export CC="$GCC_PREFIX/bin/gcc" CXX="$GCC_PREFIX/bin/g++"
+    export LDFLAGS="-Wl,-rpath,$GCC_PREFIX/lib64${LDFLAGS:+ $LDFLAGS}"
+    ok "Using $CXX ($("$CXX" -dumpversion)) for the Hyprland build"
 }
 
 ensure_rust() {

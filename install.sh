@@ -52,7 +52,7 @@ info "Distro : ${PRETTY_NAME}"
 info "GPU    : ${GPU}"
 info "Steps  : desktop=$DO_DESKTOP shell=$DO_SHELL boot=$DO_BOOT (configs: $LINK_MODE)"
 [[ $DISTRO == debian && $DO_DESKTOP == 1 ]] && \
-    warn "Debian: Hyprland & co. are compiled from source. Expect 30-60 min and a C++26 compiler (g++ >= 15)."
+    warn "Debian: Hyprland & co. are compiled from source. Expect 30-60 min (+30-60 min more the first time if GCC 15 has to be built, since trixie ships g++ 14)."
 confirm "Continue?" || exit 0
 
 sudo -v
