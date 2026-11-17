@@ -14,6 +14,7 @@
 : "${AQUAMARINE_TAG:=v0.16.0}"
 : "${HYPRLAND_PROTOCOLS_TAG:=v0.8.0}"
 # System libs that trixie ships too old for Hyprland >= 0.57; built into /usr/local only if needed
+: "${WAYLAND_SCANNER_TAG:=1.25.0}"      # wayland-protocols 1.49's XML needs scanner >= 1.25
 : "${WAYLAND_PROTOCOLS_TAG:=1.49}"
 : "${XKBCOMMON_TAG:=xkbcommon-1.11.0}"
 : "${LIBINPUT_TAG:=1.29.2}"
@@ -167,6 +168,15 @@ PC
 # They go to /usr/local (ahead of the system libs in ld.so.conf); sonames are unchanged, so
 # everything else linked against the distro copies keeps working.
 build_newer_system_libs() {
+    # Only the scanner is built (-Dlibraries=false): trixie's libwayland 1.23 is new enough for
+    # Hyprland, but its wayland-scanner rejects the "frozen" attribute used by wayland-protocols.
+    if ! pc_ge wayland-protocols "$WAYLAND_PROTOCOLS_TAG"; then
+        apt_try libexpat1-dev
+        pc_ge wayland-scanner "$WAYLAND_SCANNER_TAG" \
+            || build_meson wayland-scanner https://gitlab.freedesktop.org/wayland/wayland.git \
+                "$WAYLAND_SCANNER_TAG" -Dlibraries=false -Dscanner=true -Dtests=false -Ddocumentation=false \
+            || die "wayland-scanner build failed"
+    fi
     pc_ge wayland-protocols "$WAYLAND_PROTOCOLS_TAG" \
         || build_meson wayland-protocols https://gitlab.freedesktop.org/wayland/wayland-protocols.git \
             "$WAYLAND_PROTOCOLS_TAG" -Dtests=false \
