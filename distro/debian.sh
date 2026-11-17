@@ -12,7 +12,7 @@
 : "${HYPRGRAPHICS_TAG:=v0.6.0}"
 : "${HYPRWIRE_TAG:=v0.3.1}"
 : "${AQUAMARINE_TAG:=v0.16.0}"
-: "${HYPRLAND_PROTOCOLS_TAG:=}"          # empty = latest
+: "${HYPRLAND_PROTOCOLS_TAG:=v0.8.0}"
 : "${HYPRLAND_TAG:=v0.57.2}"
 : "${HYPRLOCK_TAG:=v0.9.7}"
 : "${HYPRIDLE_TAG:=v0.1.8}"
@@ -190,7 +190,7 @@ build_hypr_stack() {
     build_cmake hyprgraphics        "$gh/hyprgraphics.git"        "$HYPRGRAPHICS_TAG"
     build_cmake hyprwire            "$gh/hyprwire.git"            "$HYPRWIRE_TAG"
     build_cmake aquamarine          "$gh/aquamarine.git"          "$AQUAMARINE_TAG"
-    build_meson hyprland-protocols  "$gh/hyprland-protocols.git"  "$HYPRLAND_PROTOCOLS_TAG"
+    build_cmake hyprland-protocols  "$gh/hyprland-protocols.git"  "$HYPRLAND_PROTOCOLS_TAG"
     build_cmake Hyprland            "$gh/Hyprland.git"            "$HYPRLAND_TAG" \
         || die "Hyprland build failed – see the log above"
     build_cmake hyprlock            "$gh/hyprlock.git"            "$HYPRLOCK_TAG"
