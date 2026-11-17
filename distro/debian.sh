@@ -24,6 +24,7 @@
 : "${HYPRIDLE_TAG:=v0.1.8}"
 : "${HYPRPICKER_TAG:=v0.4.8}"
 : "${HYPRLAND_QT_SUPPORT_TAG:=v0.1.0}"
+: "${HYPRTOOLKIT_TAG:=v0.6.0}"         # GUI toolkit for hyprpolkitagent and XDPH's share picker
 : "${HYPRPOLKITAGENT_TAG:=v0.2.0}"
 : "${XDPH_TAG:=v1.5.0}"
 : "${AWWW_TAG:=v0.12.1}"
@@ -260,7 +261,8 @@ hypr_build_deps() {
         libxcb-image0-dev libxcb-keysyms1-dev libxcb-randr0-dev libxcb-xkb-dev libxcb-cursor-dev \
         libxcursor-dev libx11-xcb-dev xwayland \
         glslang-dev glslang-tools libei-dev libeis-dev libcanberra-dev liblcms2-dev uuid-dev libreadline-dev \
-        liblua5.4-dev lua5.4 libpam0g-dev \
+        liblua5.4-dev lua5.4 libpam0g-dev libiniparser-dev libabsl-dev \
+        libpipewire-0.3-dev libspa-0.2-dev \
         bison libxml2-dev libmtdev-dev libevdev-dev libwacom-dev \
         qt6-base-dev qt6-base-private-dev qt6-declarative-dev qt6-wayland-dev libpolkit-qt6-1-dev \
         qml6-module-qtquick-controls qml6-module-qtquick-layouts
@@ -285,6 +287,8 @@ build_hypr_stack() {
     build_cmake hyprpicker          "$gh/hyprpicker.git"          "$HYPRPICKER_TAG"
     build_cmake hyprland-qt-support "$gh/hyprland-qt-support.git" "$HYPRLAND_QT_SUPPORT_TAG" \
         -DINSTALL_QML_PREFIX=/lib/qt6/qml || warn "hyprland-qt-support failed"
+    build_cmake hyprtoolkit         "$gh/hyprtoolkit.git"         "$HYPRTOOLKIT_TAG" -DBUILD_TESTING=OFF \
+        || warn "hyprtoolkit failed (hyprpolkitagent and XDPH need it)"
     build_cmake hyprpolkitagent     "$gh/hyprpolkitagent.git"     "$HYPRPOLKITAGENT_TAG" \
         || { warn "hyprpolkitagent failed, installing polkit-kde-agent-1 instead"; apt_try polkit-kde-agent-1; }
 
