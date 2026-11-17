@@ -1,0 +1,35 @@
+diff --git a/src/helpers/MiscFunctions.cpp b/src/helpers/MiscFunctions.cpp
+index 299d2199c..51f307f53 100644
+--- a/src/helpers/MiscFunctions.cpp
++++ b/src/helpers/MiscFunctions.cpp
+@@ -468,13 +468,8 @@ bool truthy(const std::string& str) {
+     if (str == "1"sv)
+         return true;
+ 
+-    // clang-format off
+-    auto str_view = str | std::views::transform([](unsigned char ch) -> char {
+-        return sc<char>(std::tolower(ch));
+-    });
+-
+-    return [&](auto&&... prefixes) -> bool {
+-        return (... || std::ranges::starts_with(str_view, prefixes));
+-    }("true"sv, "yes"sv, "on"sv);
+-    // clang-format on
++    std::string lower;
++    for (unsigned char ch : str)
++        lower += sc<char>(std::tolower(ch));
++    return lower.starts_with("true"sv) || lower.starts_with("yes"sv) || lower.starts_with("on"sv);
+ }
+diff --git a/src/ipc/s1/S1.cpp b/src/ipc/s1/S1.cpp
+index 76f2e9b59..33bee7ab8 100644
+--- a/src/ipc/s1/S1.cpp
++++ b/src/ipc/s1/S1.cpp
+@@ -145,7 +145,7 @@ SResponse CSocket1::dispatchBatch(std::string request, pid_t pid) {
+             if (i < request.size() && (request[i + 1] == '\\' || request[i + 1] == ';'))
+                 ++i;
+             else
+-                LOG(Log::ERR, "Malformed socket1 request: invalid escape sequence {} at position {}, using it verbatim", request.subview(i, 2), i);
++                LOG(Log::ERR, "Malformed socket1 request: invalid escape sequence {} at position {}, using it verbatim", std::string_view{request}.substr(i, 2), i);
+         }
+         parsedCommand << request[i];
+     }

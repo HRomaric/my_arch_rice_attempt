@@ -71,6 +71,20 @@ checkout_tag() {   # checkout_tag <dir> <tag>
     git -C "$1" submodule update --init --recursive >&2
 }
 
+# Apply distro/patches/<name>/*.patch after checkout (e.g. to build with GCC 15 where upstream
+# already uses GCC 16 library features). A patch that no longer applies (pin bumped) is skipped.
+apply_patches() {   # apply_patches <name> <src dir>
+    local p
+    for p in "$DOTFILES/distro/patches/$1"/*.patch; do
+        [[ -f $p ]] || continue
+        if git -C "$2" apply --check "$p" 2>/dev/null; then
+            git -C "$2" apply "$p" && info "Applied patch $(basename "$p")"
+        else
+            warn "Patch $(basename "$p") doesn't apply to $1, skipped"
+        fi
+    done
+}
+
 built() { [[ -f "$SRC_DIR/.built-$1-$2" ]]; }
 mark_built() { touch "$SRC_DIR/.built-$1-$2"; }
 
@@ -79,6 +93,7 @@ build_cmake() {   # build_cmake <name> <git url> <tag> [cmake args...]
     built "$name" "$tag" && { info "$name $tag already built"; return; }
     info "Building $name $tag"
     local d; d=$(git_fetch "$url" "$name" "" --recursive); checkout_tag "$d" "$tag"
+    apply_patches "$name" "$d"
     rm -rf "$d/build"
     cmake -S "$d" -B "$d/build" -G Ninja --no-warn-unused-cli \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_INSTALL_LIBDIR=lib "$@" \
