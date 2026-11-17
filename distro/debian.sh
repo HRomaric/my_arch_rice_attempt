@@ -37,7 +37,8 @@
 export DEBIAN_FRONTEND=noninteractive
 export CMAKE_PREFIX_PATH=/usr/local
 export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/local/lib/$(uname -m)-linux-gnu/pkgconfig:/usr/local/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-export PATH="/usr/local/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+# sbin: Debian leaves it off a normal user's PATH, which hid grub-mkconfig from `have`
+export PATH="/usr/local/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH:/usr/local/sbin:/usr/sbin:/sbin"
 JOBS=$(nproc)
 
 # Exact-name check. (apt-cache show/policy treat the name as a regex, so "g++-15" would
