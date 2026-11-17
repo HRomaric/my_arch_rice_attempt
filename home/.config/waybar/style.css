@@ -1,0 +1,17 @@
+@import "colors.css";
+
+* { font-family: "CaskaydiaCove Nerd Font", sans-serif; font-size: 13px; border: none; border-radius: 0; min-height: 0; }
+window#waybar { background: @bg; color: @fg; }
+#workspaces button { padding: 0 8px; color: @fg_dim; background: transparent; }
+#workspaces button.active { color: @on_accent; background: @accent; border-radius: 6px; }
+#workspaces button.urgent { background: @error; }
+#workspaces button:hover { background: @hover; box-shadow: none; }
+#window, #clock, #tray, #pulseaudio, #backlight, #network, #bluetooth, #cpu, #memory, #battery, #custom-power, #custom-screenrec { padding: 0 8px; }
+#clock { font-weight: bold; }
+#battery.warning { color: @warning; }
+#battery.critical:not(.charging) { color: @error; }
+#pulseaudio.muted { color: @muted; }
+#custom-power { color: @error; margin-right: 6px; }
+
+/* Screen recording indicator (hidden when not recording) */
+#custom-screenrec { color: @error; font-weight: bold; }

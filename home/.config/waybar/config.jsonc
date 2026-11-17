@@ -1,0 +1,43 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 30,
+  "spacing": 4,
+  "modules-left": ["hyprland/workspaces", "hyprland/window"],
+  "modules-center": ["clock"],
+  "modules-right": ["custom/screenrec", "tray", "pulseaudio", "backlight", "network", "bluetooth", "cpu", "memory", "battery", "custom/power"],
+
+  "hyprland/workspaces": {
+    "format": "{id}",
+    "all-outputs": false,
+    "active-only": true,
+    "on-scroll-up": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"e+1\" })'",
+    "on-scroll-down": "hyprctl dispatch 'hl.dsp.focus({ workspace = \"e-1\" })'"
+  },
+  "hyprland/window": { "max-length": 50, "separate-outputs": true },
+  "clock": { "format": "{:%a %d %b  %H:%M}", "tooltip-format": "<tt>{calendar}</tt>" },
+  "tray": { "spacing": 8 },
+  "pulseaudio": {
+    "format": "{icon} {volume}%", "format-muted": "󰝟 muted",
+    "format-icons": { "default": ["󰕿", "󰖀", "󰕾"], "headphone": "󰋋" },
+    "on-click": "pavucontrol", "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+  },
+  "backlight": { "format": "󰃠 {percent}%", "on-scroll-up": "brightnessctl set 5%+", "on-scroll-down": "brightnessctl set 5%-" },
+  "network": {
+    "format-wifi": "󰤨 {essid}", "format-ethernet": "󰈀 wired", "format-disconnected": "󰤭 off",
+    "tooltip-format": "{ifname} {ipaddr}", "on-click": "nm-connection-editor"
+  },
+  "bluetooth": { "format": "󰂯", "format-disabled": "󰂲", "format-connected": "󰂱 {num_connections}", "on-click": "blueman-manager" },
+  "cpu": { "format": "󰍛 {usage}%", "interval": 5, "on-click": "kitty -e htop" },
+  "memory": { "format": "󰘚 {percentage}%", "interval": 5, "on-click": "kitty -e btop" },
+  "battery": {
+    "states": { "warning": 25, "critical": 10 },
+    "format": "{icon} {capacity}%", "format-charging": "󰂄 {capacity}%", "format-plugged": "󰚥 {capacity}%",
+    "format-icons": ["󰁺", "󰁼", "󰁾", "󰂀", "󰁹"]
+  },
+  "custom/screenrec": {
+    "exec": "~/.config/hypr/scripts/screenrec-status.sh", "return-type": "json",
+    "interval": 1, "signal": 8, "on-click": "pkill -INT -x wf-recorder"
+  },
+  "custom/power": { "format": "⏻", "tooltip": false, "on-click": "wlogout" }
+}
