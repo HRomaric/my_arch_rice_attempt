@@ -7,7 +7,7 @@ GRUB Sidonia T1 → Plymouth `black_hud` → Ly (blackhole animation).
 ## Install on a new machine
 
 ```bash
-git clone <your-remote>/dotfiles.git ~/dotfiles
+git clone git@github.com:HRomaric/my_arch_rice_attempt.git/dotfiles.git ~/dotfiles
 cd ~/dotfiles
 ./install.sh            # as your normal user, it calls sudo itself
 ```
